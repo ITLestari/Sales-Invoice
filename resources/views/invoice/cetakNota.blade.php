@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Nota CT</title>
+    <style>
+        @page {
+            size: 140mm 210mm landscape;
+            margin-top: 5mm;
+            margin-left: 4mm;
+            margin-right: 10mm;
+            margin-bottom: 1mm;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+        }
+
+
+
+        .header .right {
+            text-align: right;
+        }
+
+        .info-cust {
+            display: flex;
+        }
+
+        .items-list {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5px;
+        }
+
+        .items-list th,
+        .items-list td {
+            border: 1px solid #000;
+            padding: 4px;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .items-list th {
+            background: #f0f0f0;
+        }
+
+        .totals td {
+            font-weight: bold;
+        }
+
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+
+        .sign {
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        .note {
+            margin-top: 10px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .box {
+            border: 1px solid #000;
+            min-height: 2px;
+            padding: 5px;
+            width: 250px;
+        }
+
+        .header-tab {
+            margin: 0px !important;
+            border: 0 !important;
+            border-spacing: 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        @for ($j = 0; $j < count($data); $j++)
+            <table style=" width: 100%;" border="0" class="header-tab">
+                <tr>
+                    <td width="60%" style="font-size: 17px;"><b><u>NOTA CT</u></b></td>
+                    <td width="10%" style="text-align: right;">Customer :</td>
+                    <td> {{ $data[$j]->Customer }}</td>
+                </tr>
+                <tr>
+                    <td>Nota No : {{ $data[$j]->SW }}</td>
+                    <td></td>
+                    <td> {{ $data[$j]->Address }}
+                    </td>
+                </tr>
+                <tr>
+                    <td>Tanggal : {{ $data[$j]->TransDate }}</td>
+                    <td></td>
+                    <td> {{ $data[$j]->Phone }}</td>
+                </tr>
+                @if ($data[$j]->Grosir != '')
+                    <tr>
+                        <td></td>
+                        <td style="text-align: right;vertical-align:top"><b>Grosir:</b></td>
+                        <td>
+                            @if ($data[$j]->SubGrosir)
+                                {{ $data[$j]->SubGrosir }} -
+                            @endif
+                            {{ $data[$j]->Grosir }}
+                        </td>
+                    </tr>
+                @endif
+            </table>
+            <table class="items-list" style="margin-top:2px">
+                <thead>
+                    <tr>
+                        <th>Kadar</th>
+                        <th>Kategori</th>
+                        <th>Bruto</th>
+                        <th>%</th>
+                        <th>24K</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($data[$j]->ItemList as $item)
+                        <tr>
+                            <td style="text-align: center;">{{ $item->caratDesc }}</td>
+                            <td style="text-align: left;padding-left:10px">{{ $item->productDesc }}</td>
+                            <td style="text-align: right;padding-right:10px">{{ $item->gw }}</td>
+                            <td>{{ $item->price }}</td>
+                            <td style="text-align: right;padding-right:10px">{{ $item->nw }}</td>
+                        </tr>
+                    @endforeach
+                    @for ($i = count($data[$j]->ItemList); $i < 10; $i++)
+                        <tr>
+                            <td>&nbsp;</td>
+                            <td>&nbsp;</td>
+                            <td>&nbsp;</td>
+                            <td>&nbsp;</td>
+                            <td>&nbsp;</td>
+                        </tr>
+                    @endfor
+                </tbody>
+                <tfoot>
+                    <tr class="totals">
+                        <td colspan="2">Total</td>
+                        <td style="text-align: right;padding-right:10px">{{ $data[$j]->totalgw }}</td>
+                        <td></td>
+                        <td style="text-align: right;padding-right:10px">{{ $data[$j]->totalnw }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+            <table style="width: 101%" border="0">
+                <tr>
+                    <td style="vertical-align: bottom; text-align: center; height: 70px;">
+                        Customer<br><br><br><br><br><br>
+                        ( _____________________ )<br>
+                    </td>
+                    <td style="vertical-align: bottom; text-align: center; height: 70px;">
+                        Sales<br><br><br><br><br><br>
+                        ( _____________________ )<br>
+                    </td>
+                    <td style="text-align: left; vertical-align: top; width: 270px; border-top: 1px solid black; border-left: 1px solid black;border-right: 1px solid black; border-bottom: 1px solid black;"
+                        rowspan="2">
+                        {{-- <div class="box" style="height: 120px;">
+                        Keterangan : {{ $data->Remarks }}
+                    </div> --}}
+                        Keterangan : {{ $data[$j]->Venue }}
+
+                        @if ($data[$j]->isCustomer)
+                            <div style="position: absolute; bottom: 30px; right: 150;">
+                                CUSTOMER
+                            </div>
+                        @endif
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2"
+                        style="text-align: left; vertical-align: top; padding: 0; font-size: 10px; line-height: 1;padding-top:5px">
+                        <u>*Pastikan Berat Barang yang Anda Terima sesuai dengan Nota</u>
+                    </td>
+                    <td style="border: none;"></td> <!-- empty to align with remarks column -->
+                </tr>
+            </table>
+
+            
+
+           
+            @if ($j < count($data) - 1)
+                <div style="page-break-after: always;"></div>
+            @endif
+
+        @endfor
+    </div>
+
+</body>
+
+</html>

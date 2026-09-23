@@ -1,0 +1,91 @@
+<?php
+
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\MasterController;
+use App\Http\Controllers\SalesInvController;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register web routes for your application. These
+| routes are loaded by the RouteServiceProvider within a group which
+| contains the "web" middleware group. Now create something great!
+|
+*/
+
+
+
+Route::get('/', [SalesInvController::class, 'form'])->name('sales.form');
+
+Route::get('/getData/Venue/search', [LoginController::class, 'getDataVenueSearch']);
+Route::prefix('pack')->group(function () {
+    Route::get('/show', [SalesInvController::class, 'show_pack']);
+    Route::get('/getData/Nota/', [SalesInvController::class, 'getDataNotaPack']);
+    Route::get('/cetakNota/', [SalesInvController::class, 'cetakDataNotaPack']);
+    Route::get('/prevNota/', [SalesInvController::class, 'prevDataNotaPack']);
+});
+Route::prefix('pricelist')->group(function () {
+    Route::get('/show', [MasterController::class, 'show_pricelist']);
+    Route::get('/show_data', [MasterController::class, 'show_pricelist_data']);
+    Route::get('/getDataAll', [MasterController::class, 'show_pricelist_grosir_data']);
+    Route::get('/create', [MasterController::class, 'create_pricelist']);
+    Route::post('/store', [MasterController::class, 'store_pricelist']);
+    Route::get('/edit/{cus}/{cat}/{car}', [MasterController::class, 'edit_pricelist']);
+    Route::post('/update', [MasterController::class, 'update_pricelist']);
+});
+Route::prefix('produk')->group(function () {
+    Route::get('/show', [MasterController::class, 'show_produk']);
+    Route::get('/create', [MasterController::class, 'create_produk']);
+    Route::get('/edit/{id}', [MasterController::class, 'edit_produk']);
+    Route::post('/store', [MasterController::class, 'store_produk']);
+    Route::post('/update', [MasterController::class, 'update_produk']);
+    Route::get('/show_data', [MasterController::class, 'show_produk_data']);
+});
+Route::prefix('grosir')->group(function () {
+    Route::get('/show', [MasterController::class, 'show_grosir']);
+    Route::get('/create', [MasterController::class, 'create_grosir']);
+    Route::get('/edit/{id}', [MasterController::class, 'edit_grosir']);
+    Route::post('/store', [MasterController::class, 'store_grosir']);
+    Route::post('/update', [MasterController::class, 'update_grosir']);
+    Route::get('/show_data', [MasterController::class, 'show_grosir_data']);
+});
+Route::prefix('venue')->group(function () {
+    Route::get('/show', [MasterController::class, 'show_venue']);
+    Route::get('/create', [MasterController::class, 'create_venue']);
+    Route::get('/edit/{id}', [MasterController::class, 'edit_venue']);
+    Route::post('/store', [MasterController::class, 'store_venue']);
+    Route::post('/update', [MasterController::class, 'update_venue']);
+    Route::get('/show_data', [MasterController::class, 'show_venue_data']);
+});
+Route::prefix('user')->group(function () {
+    Route::get('/show', [MasterController::class, 'show_user']);
+    Route::get('/create', [MasterController::class, 'create_user']);
+    Route::get('/edit/{id}', [MasterController::class, 'edit_user']);
+    Route::post('/store', [MasterController::class, 'store_user']);
+    Route::post('/update', [MasterController::class, 'update_user']);
+    Route::get('/show_data', [MasterController::class, 'show_user_data']);
+});
+Route::prefix('sales')->group(function () {
+    Route::get('/getData/Nota/riwayat', [SalesInvController::class, 'getDataNotaRiwayat']);
+    Route::get('/getData/Nota/search', [SalesInvController::class, 'getDataNotaSearch']);
+    Route::get('/getData/subGros/', [SalesInvController::class, 'getDataSubGros']);
+    Route::get('/getData/Nota/', [SalesInvController::class, 'getDataNota']);
+    Route::get('/getData/NotaAll/', [SalesInvController::class, 'getDataNotaAll']);
+    Route::get('/getData/Gros/{ID}', [SalesInvController::class, 'getDataGros']);
+    Route::get('/getData/Price/', [SalesInvController::class, 'getDataPrice']);
+    Route::get('/create', [SalesInvController::class, 'create']);
+    Route::post('/store', [SalesInvController::class, 'store']);
+    Route::get('/show', [SalesInvController::class, 'show']);
+    Route::get('/edit/{Nota}', [SalesInvController::class, 'edit']);
+    Route::get('/detail/{Nota}', [SalesInvController::class, 'detail']);
+    Route::put('/update/{ID}', [SalesInvController::class, 'update']);
+    Route::get('/cetakNota/{style}/{ID}', [SalesInvController::class, 'cetakNota']);
+    Route::get('/cetakBarcode/{Nota}/{Page}', [SalesInvController::class, 'cetakBarcode']);
+});
+
+// Auth::routes();
+Auth::routes(['register' => true]);
