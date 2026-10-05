@@ -1261,6 +1261,7 @@ class SalesInvController extends Controller
             $inv =  DB::table('invoice')->insert([
                 'ID' => $getLastInvID,
                 'SW' => $getLastNotaID ? $getLastNotaID + 1 : 1,
+                'EntryDate' => Carbon::now(),
                 'TransDate' => $request->transDate,
                 'Customer' => $request->customer,
                 'Address' => $request->alamat,
