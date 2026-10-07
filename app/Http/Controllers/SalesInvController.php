@@ -727,7 +727,7 @@ class SalesInvController extends Controller
         $data->TransDate = Carbon::parse($data->TransDate)->format('d.m.y');
         $data->pelanggan =  ucwords(strtolower($data->pelanggan));
 
-        if ($data->Grosir == 'SA' || $data->Grosir == 'BM' || $data->Grosir == 'BMJ' || $data->Grosir == 'BMS' || $data->Grosir == 'HK' || $data->Grosir == 'ARJ' || $data->Grosir == 'ANK') {
+        if ($data->Grosir == 'SA' || $data->Grosir == 'BM' || $data->Grosir == 'BMJ' || $data->Grosir == 'BMS' || $data->Grosir == 'HK' || $data->Grosir == 'ARJ' || $data->Grosir == 'ANK' || $data->Grosir == 'SSN' || $data->Grosir == 'MRK') {
             // if ($data->Grosir == 'SA' || $data->Grosir == 'BM' || $data->Grosir == 'BM'   ) {
             $qrValue =  $this->Qrformat(
                 $data->subgrosir,
@@ -971,6 +971,14 @@ class SalesInvController extends Controller
 
         if ($grosir == 'ANK') {
             $QRvalue->ws = 'ANEKA';
+        }
+
+        if ($grosir == 'SSN') {
+            $QRvalue->ws = 'SS';
+        }
+
+        if ($grosir == 'MRK') {
+            $QRvalue->ws = 'MRK';
         }
 
 

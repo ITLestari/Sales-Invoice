@@ -1771,6 +1771,12 @@
                             } else if (data.ws == 'ANEKA') {
                                 $('#grosir').val(8).trigger('change');
                                 setGrosir = 8;
+                            } else if (data.ws == 'SS') {
+                                $('#grosir').val(818).trigger('change');
+                                setGrosir = 818;
+                            } else if (data.ws == 'MRK') {
+                                $('#grosir').val(117).trigger('change');
+                                setGrosir = 117;
                             } else {
                                 $('#grosir').val(1012).trigger('change');
                                 setGrosir = 1012;
