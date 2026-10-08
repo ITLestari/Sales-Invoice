@@ -24,6 +24,17 @@
     };
     const TIMEOUT_MS = 10000;
 
+    // Banyak tab: satu tab pemegang Web Lock membuka port, tab lain menitip
+    // permintaan lewat BroadcastChannel. Bila tab itu ditutup, tab berikutnya mengambil alih.
+    const tabId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const permintaan = new Map();
+    let channel = null;
+    let pemimpin = false;
+    let pemimpinId = null;
+    let terhubung = false;
+    let menyambung = null;
+    let nomor = 0;
+
     let port = null;
     let buffer = "";
     let pending = null;
@@ -33,50 +44,189 @@
         return PROFILES[tipe] ? tipe : "AND";
     }
 
+    function mulai() {
+        if (!("locks" in navigator) || typeof BroadcastChannel !== "function") {
+            jadiPemimpin();
+            return;
+        }
+        channel = new BroadcastChannel("timbangan");
+        channel.onmessage = (e) => terimaPesan(e.data);
+        kirimPesan({ type: "tanya-status" });
+        navigator.locks
+            .request("timbangan-port", () => {
+                jadiPemimpin();
+                return new Promise(() => {}); // dipegang sampai tab ditutup
+            })
+            .catch((e) => console.warn("Web Lock timbangan gagal:", e));
+        window.addEventListener("pagehide", () => {
+            if (pemimpin) kirimPesan({ type: "pergi" });
+        });
+    }
+
+    function jadiPemimpin() {
+        pemimpin = true;
+        pemimpinId = tabId;
+        console.info("Timbangan: tab ini menjadi pemegang port");
+        kirimPesan({ type: "pemimpin" });
+        sambung().catch((e) => console.log("Auto connect gagal:", e.message));
+
+        // Permintaan tab ini yang belum dijawab pemegang lama dilayani sendiri.
+        permintaan.forEach((req, id) => {
+            permintaan.delete(id);
+            clearTimeout(req.timer);
+            jalankan(req.aksi, req.tipe).then(req.resolve, req.reject);
+        });
+    }
+
+    function kirimPesan(msg) {
+        if (channel) channel.postMessage({ ...msg, dari: tabId });
+    }
+
+    function terimaPesan(msg) {
+        switch (msg.type) {
+            case "tanya-status":
+                if (pemimpin) kirimPesan({ type: "status", terhubung });
+                break;
+            case "pemimpin":
+                pemimpinId = msg.dari;
+                permintaan.forEach((req, id) =>
+                    kirimPesan({ type: "minta", id, aksi: req.aksi, tipe: req.tipe })
+                );
+                break;
+            case "status":
+                pemimpinId = msg.dari;
+                terhubung = msg.terhubung;
+                setTombol();
+                break;
+            case "pergi":
+                if (msg.dari === pemimpinId) {
+                    terhubung = false;
+                    setTombol();
+                }
+                break;
+            case "minta":
+                if (pemimpin) layani(msg);
+                break;
+            case "hasil":
+                if (msg.untuk === tabId) terimaHasil(msg);
+                break;
+        }
+    }
+
+    async function layani(msg) {
+        let hasil;
+        try {
+            hasil = { ok: true, nilai: await jalankan(msg.aksi, msg.tipe) };
+        } catch (e) {
+            hasil = { ok: false, pesan: e.message };
+        }
+        kirimPesan({ type: "hasil", id: msg.id, untuk: msg.dari, ...hasil });
+    }
+
+    function jalankan(aksi, tipe) {
+        return aksi === "sambung" ? sambung() : timbang(tipe);
+    }
+
+    function mintaKePemimpin(aksi) {
+        const id = tabId + "-" + ++nomor;
+        const tipe = getTipe();
+        return new Promise((resolve, reject) => {
+            const req = { aksi, tipe, resolve, reject };
+            req.timer = setTimeout(() => {
+                permintaan.delete(id);
+                reject(new Error("Tab pemegang timbangan tidak menjawab. Coba lagi."));
+            }, TIMEOUT_MS + 5000);
+            permintaan.set(id, req);
+            console.debug("Timbangan: minta ke tab pemegang port:", aksi);
+            kirimPesan({ type: "minta", id, aksi, tipe });
+        });
+    }
+
+    function terimaHasil(msg) {
+        const req = permintaan.get(msg.id);
+        if (!req) return;
+        permintaan.delete(msg.id);
+        clearTimeout(req.timer);
+        if (msg.ok) req.resolve(msg.nilai);
+        else req.reject(new Error(msg.pesan));
+    }
+
+    function umumkanStatus() {
+        terhubung = !!port;
+        setTombol();
+        kirimPesan({ type: "status", terhubung });
+    }
+
     async function connectSerial(auto = false) {
-        if (port) return;
+        if (auto) {
+            if (pemimpin) sambung().catch((e) => console.log("Auto connect gagal:", e.message));
+            return;
+        }
+        if (terhubung) return;
         if (!("serial" in navigator)) {
-            if (!auto) {
-                alert("Browser ini tidak mendukung koneksi timbangan (Web Serial). Gunakan Chrome atau Edge.");
-            }
+            alert("Browser ini tidak mendukung koneksi timbangan (Web Serial). Gunakan Chrome atau Edge.");
             return;
         }
 
         try {
-            if (auto) {
-                const savedPortInfo = JSON.parse(localStorage.getItem("savedPort"));
-                if (!savedPortInfo) return;
-
-                const ports = await navigator.serial.getPorts();
-                port =
-                    ports.find((p) => {
-                        const info = p.getInfo();
-                        return (
-                            info.usbVendorId === savedPortInfo.usbVendorId &&
-                            info.usbProductId === savedPortInfo.usbProductId
-                        );
-                    }) || null;
-
-                if (!port) {
-                    console.log("Auto connect gagal: port tidak ditemukan.");
-                    return;
-                }
-            } else {
-                port = await navigator.serial.requestPort();
-                localStorage.setItem("savedPort", JSON.stringify(port.getInfo()));
-            }
-
-            await port.open({ baudRate: 9600 });
-            setTombol(true);
-            listenToPort(port);
+            const dipilih = await navigator.serial.requestPort();
+            localStorage.setItem("savedPort", JSON.stringify(dipilih.getInfo()));
+            if (pemimpin) await sambung(dipilih);
+            else await mintaKePemimpin("sambung");
         } catch (e) {
-            port = null;
-            if (auto) {
-                console.warn("Auto reconnect gagal:", e);
-            } else if (e.name !== "NotFoundError") {
-                alert("Harap tutup halaman lain yang pakai timbangan.\nPesan: " + e);
+            if (e.name !== "NotFoundError") {
+                alert(
+                    "Timbangan gagal terhubung. Pastikan port tidak dipakai aplikasi atau browser lain.\nPesan: " +
+                        (e.message || e)
+                );
             }
         }
+    }
+
+    // Fungsi port di bawah ini hanya berjalan di tab pemegang port.
+    async function sambung(dipilih) {
+        if (menyambung) await menyambung.catch(() => {});
+        if (port) return;
+        if (!menyambung) {
+            menyambung = bukaPort(dipilih).finally(() => {
+                menyambung = null;
+                umumkanStatus();
+            });
+        }
+        return menyambung;
+    }
+
+    async function bukaPort(dipilih) {
+        if (!("serial" in navigator)) {
+            throw new Error("Browser ini tidak mendukung koneksi timbangan (Web Serial). Gunakan Chrome atau Edge.");
+        }
+        const p = dipilih || (await cariPortTersimpan());
+
+        // Port bisa masih ditutup oleh tab pemegang sebelumnya, jadi dicoba ulang.
+        for (let coba = 1; ; coba++) {
+            try {
+                await p.open({ baudRate: 9600 });
+                break;
+            } catch (e) {
+                if (coba === 8) throw e;
+                await new Promise((r) => setTimeout(r, 400));
+            }
+        }
+        port = p;
+        listenToPort(p);
+    }
+
+    async function cariPortTersimpan() {
+        const saved = JSON.parse(localStorage.getItem("savedPort"));
+        if (!saved) throw new Error("Belum ada timbangan yang dipilih. Klik tombol Hubungkan.");
+
+        const ports = await navigator.serial.getPorts();
+        const p = ports.find((x) => {
+            const info = x.getInfo();
+            return info.usbVendorId === saved.usbVendorId && info.usbProductId === saved.usbProductId;
+        });
+        if (!p) throw new Error("Port timbangan tidak ditemukan. Periksa kabel USB.");
+        return p;
     }
 
     async function listenToPort(p) {
@@ -99,7 +249,7 @@
                 port = null;
                 buffer = "";
                 selesai(new Error("Koneksi timbangan terputus. Klik tombol Hubungkan."));
-                setTombol(false);
+                umumkanStatus();
                 p.close().catch(() => {});
             }
         }
@@ -170,13 +320,12 @@
         return Number(berat.toFixed(2));
     }
 
-    function kliktimbang() {
+    async function timbang(tipe) {
+        if (menyambung) await menyambung.catch(() => {});
         if (pending) return pending.promise;
-        if (!port) {
-            return Promise.reject(new Error("Timbangan belum terhubung. Klik tombol Hubungkan."));
-        }
+        if (!port) throw new Error("Timbangan belum terhubung. Klik tombol Hubungkan.");
 
-        const profile = PROFILES[getTipe()];
+        const profile = PROFILES[tipe] || PROFILES[getTipe()];
         const req = { parse: profile.parse };
         req.promise = new Promise((resolve, reject) => {
             req.resolve = resolve;
@@ -190,6 +339,10 @@
 
         kirim(profile.command).catch((e) => selesai(e));
         return req.promise;
+    }
+
+    function kliktimbang() {
+        return pemimpin ? timbang(getTipe()) : mintaKePemimpin("timbang");
     }
 
     function selesai(err, berat) {
@@ -211,7 +364,7 @@
         }
     }
 
-    function setTombol(terhubung) {
+    function setTombol() {
         const conscale = document.getElementById("conscale");
         if (!conscale) return;
         conscale.classList.toggle("disabled", terhubung);
@@ -225,6 +378,10 @@
         Object.keys(PROFILES).forEach((tipe) => select.add(new Option(PROFILES[tipe].label, tipe)));
         select.value = getTipe();
         select.addEventListener("change", () => localStorage.setItem("tipeTimbangan", select.value));
+        // Pilihan yang diubah di tab lain ikut tampil di tab ini.
+        window.addEventListener("storage", (e) => {
+            if (e.key === "tipeTimbangan") select.value = getTipe();
+        });
     }
 
     if (document.readyState === "loading") {
@@ -232,8 +389,11 @@
     } else {
         initPilihanTipe();
     }
+    mulai();
 
     // Expose ke global window
     window.connectSerial = connectSerial;
     window.kliktimbang = kliktimbang;
+    // Diagnosa di Console: ketik statusTimbangan()
+    window.statusTimbangan = () => ({ tab: tabId, pemegangPort: pemimpin, pemimpin: pemimpinId, terhubung });
 })();
