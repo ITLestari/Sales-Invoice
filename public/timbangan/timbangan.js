@@ -24,7 +24,24 @@
     };
     const TIMEOUT_MS = 10000;
 
+    // Koneksi dipilih per PC (localStorage "koneksiTimbangan") dan dibaca sekali saat halaman dimuat.
+    // Mode bridge: WebApp Hardware Bridge memegang COM port, setiap tab terhubung lewat WebSocket.
+    const KONEKSI = {
+        serial: "Web Serial",
+        bridge: "Bridge",
+    };
+    const BRIDGE_URL = "ws://127.0.0.1:12212/serial/TIMBANGAN";
+    const PETUNJUK_BRIDGE =
+        "Pastikan WebApp Hardware Bridge berjalan dengan pemetaan serial TIMBANGAN ke COM port timbangan.";
+    const koneksi = KONEKSI[localStorage.getItem("koneksiTimbangan")]
+        ? localStorage.getItem("koneksiTimbangan")
+        : "serial";
+
     let port = null;
+    let ws = null;
+    let antreBridge = false;
+    let sambungUlang = null;
+    let diterima = 0;
     let buffer = "";
     let pending = null;
 
@@ -33,7 +50,61 @@
         return PROFILES[tipe] ? tipe : "AND";
     }
 
+    // Bridge 0.14 bisa gagal mendaftarkan tab yang tersambung bersamaan (tab tidak pernah menerima data),
+    // jadi tab-tab menyambung bergiliran lewat Web Lock.
+    function hubungkanBridge() {
+        if (ws || antreBridge) return;
+        clearTimeout(sambungUlang);
+        antreBridge = true;
+        if ("locks" in navigator) {
+            navigator.locks.request("timbangan-bridge", bukaBridge).catch(() => {});
+        } else {
+            bukaBridge();
+        }
+    }
+
+    function bukaBridge() {
+        antreBridge = false;
+        return new Promise((lepas) => {
+            const sock = new WebSocket(BRIDGE_URL);
+            ws = sock;
+            sock.onopen = () => {
+                console.info("Timbangan: terhubung ke bridge");
+                setTombol(true);
+                setTimeout(lepas, 300); // beri waktu bridge selesai mendaftarkan tab ini
+            };
+            // Bridge meneruskan data serial per karakter ke semua tab yang terhubung.
+            sock.onmessage = (e) => {
+                diterima++;
+                terimaData(e.data);
+            };
+            sock.onclose = () => {
+                lepas();
+                if (ws !== sock) return;
+                ws = null;
+                buffer = "";
+                selesai(new Error("Koneksi ke bridge terputus. " + PETUNJUK_BRIDGE));
+                setTombol(false);
+                sambungUlang = setTimeout(hubungkanBridge, 3000);
+            };
+        });
+    }
+
+    // Tidak ada data sama sekali selama menunggu: tab ini mungkin tidak terdaftar di bridge.
+    function segarkanBridge() {
+        const lama = ws;
+        ws = null;
+        buffer = "";
+        if (lama) lama.close();
+        setTombol(false);
+        hubungkanBridge();
+    }
+
     async function connectSerial(auto = false) {
+        if (koneksi === "bridge") {
+            hubungkanBridge();
+            return;
+        }
         if (port) return;
         if (!("serial" in navigator)) {
             if (!auto) {
@@ -74,7 +145,10 @@
             if (auto) {
                 console.warn("Auto reconnect gagal:", e);
             } else if (e.name !== "NotFoundError") {
-                alert("Harap tutup halaman lain yang pakai timbangan.\nPesan: " + e);
+                alert(
+                    "Harap tutup halaman lain yang pakai timbangan. Bila port dipegang WebApp Hardware Bridge, pilih koneksi Bridge.\nPesan: " +
+                        e
+                );
             }
         }
     }
@@ -170,22 +244,32 @@
         return Number(berat.toFixed(2));
     }
 
+    function siap() {
+        return koneksi === "bridge" ? ws !== null && ws.readyState === WebSocket.OPEN : port !== null;
+    }
+
     function kliktimbang() {
         if (pending) return pending.promise;
-        if (!port) {
-            return Promise.reject(new Error("Timbangan belum terhubung. Klik tombol Hubungkan."));
+        if (!siap()) {
+            const pesan =
+                koneksi === "bridge"
+                    ? "Bridge timbangan belum terhubung. " + PETUNJUK_BRIDGE
+                    : "Timbangan belum terhubung. Klik tombol Hubungkan.";
+            return Promise.reject(new Error(pesan));
         }
 
         const profile = PROFILES[getTipe()];
+        const petunjuk = koneksi === "bridge" ? PETUNJUK_BRIDGE + " " + profile.petunjuk : profile.petunjuk;
         const req = { parse: profile.parse };
         req.promise = new Promise((resolve, reject) => {
             req.resolve = resolve;
             req.reject = reject;
         });
-        req.timer = setTimeout(
-            () => selesai(new Error("Timbangan tidak merespons. " + profile.petunjuk)),
-            TIMEOUT_MS
-        );
+        req.diterimaAwal = diterima;
+        req.timer = setTimeout(() => {
+            if (koneksi === "bridge" && diterima === req.diterimaAwal) segarkanBridge();
+            selesai(new Error("Timbangan tidak merespons. " + petunjuk));
+        }, TIMEOUT_MS);
         pending = req;
 
         kirim(profile.command).catch((e) => selesai(e));
@@ -203,6 +287,11 @@
 
     async function kirim(text) {
         console.debug("Timbangan ->", JSON.stringify(text));
+        if (koneksi === "bridge") {
+            // Harus satu pesan utuh: bridge menimpa buffer tulisnya setiap pesan baru.
+            ws.send(text);
+            return;
+        }
         const writer = port.writable.getWriter();
         try {
             await writer.write(new TextEncoder().encode(text));
@@ -227,10 +316,30 @@
         select.addEventListener("change", () => localStorage.setItem("tipeTimbangan", select.value));
     }
 
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", initPilihanTipe);
-    } else {
+    function initPilihanKoneksi() {
+        const select = document.getElementById("koneksiTimbangan");
+        if (!select) return;
+        Object.keys(KONEKSI).forEach((k) => select.add(new Option(KONEKSI[k], k)));
+        select.value = koneksi;
+        select.addEventListener("change", () => {
+            localStorage.setItem("koneksiTimbangan", select.value);
+            alert(
+                "Koneksi timbangan diubah ke " +
+                    KONEKSI[select.value] +
+                    ". Muat ulang semua halaman LMS yang terbuka agar berlaku."
+            );
+        });
+    }
+
+    function initPilihan() {
         initPilihanTipe();
+        initPilihanKoneksi();
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initPilihan);
+    } else {
+        initPilihan();
     }
 
     // Expose ke global window
