@@ -59,6 +59,7 @@
             <button type="button" class="btn btn-primary" id="conscale" onclick="connectSerial(false)">
                 <i class="fa-solid fa-scale-balanced"></i> : Hubungkan</button>
             <select id="tipeTimbangan" class="form-select form-select-sm w-auto" title="Tipe timbangan"></select>
+            <select id="koneksiTimbangan" class="form-select form-select-sm w-auto" title="Koneksi timbangan"></select>
         </div>
         <div>
             <div class="d-flex gap-2 ">
