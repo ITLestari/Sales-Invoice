@@ -349,7 +349,7 @@
     <script src="{{ asset('jquery-ui/jquery-ui.js') }}"></script>
     <script src="{{ asset('select2/select2.min.js') }}"></script>
     <script src="{{ asset('websocket/websocket-printer.js') }}"></script>
-    <script src="{!! asset('timbangan/timbangan.js') !!}"></script>
+    <script src="{!! asset('timbangan/timbangan.js') !!}?v={{ filemtime(public_path('timbangan/timbangan.js')) }}"></script>
     <script>
         window.addEventListener("load", () => {
             connectSerial(true);

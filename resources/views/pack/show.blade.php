@@ -20,6 +20,8 @@
                         <div class="d-flex flex-wrap gap-2">
                             <button type="button" class="btn btn-primary" id="conscale" onclick="connectSerial(false)">
                                 <i class="fa-solid fa-scale-balanced"></i> : Hubungkan</button>
+                            <select id="tipeTimbangan" class="form-select form-select-sm w-auto"
+                                title="Tipe timbangan"></select>
                         </div>
 
                     </div>
@@ -110,7 +112,7 @@
     <script src="{{ asset('jquery/jquery-3.6.0.min.js') }}"></script>
     <script src="{{ asset('jquery-ui/jquery-ui.js') }}"></script>
     <script src="{{ asset('select2/select2.min.js') }}"></script>
-    <script src="{!! asset('timbangan/timbangan.js') !!}"></script>
+    <script src="{!! asset('timbangan/timbangan.js') !!}?v={{ filemtime(public_path('timbangan/timbangan.js')) }}"></script>
     <script src="{{ asset('websocket/websocket-printer.js') }}"></script>
     <script>
         window.addEventListener("load", () => {
@@ -177,7 +179,7 @@
                 Swal.fire({
                     icon: 'error',
                     title: 'Gagal',
-                    text: error,
+                    text: error.message || 'Periksa koneksi timbangan',
                     confirmButtonText: 'OK'
                 });
             }

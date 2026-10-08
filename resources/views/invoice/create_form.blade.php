@@ -374,7 +374,7 @@
     <script src="{{ asset('jquery/jquery-3.6.0.min.js') }}"></script>
     <script src="{{ asset('jquery-ui/jquery-ui.js') }}"></script>
     <script src="{{ asset('select2/select2.min.js') }}"></script>
-    <script src="{!! asset('timbangan/timbangan.js') !!}"></script>
+    <script src="{!! asset('timbangan/timbangan.js') !!}?v={{ filemtime(public_path('timbangan/timbangan.js')) }}"></script>
     <script>
         window.addEventListener("load", () => {
             connectSerial(true);
@@ -1620,7 +1620,7 @@
                     Swal.fire({
                         icon: 'error',
                         title: 'Gagal',
-                        text: 'Periksa koneksi timbangan',
+                        text: error.message || 'Periksa koneksi timbangan',
                         confirmButtonText: 'OK'
                     });
                 }
